@@ -46,7 +46,7 @@ static ATOMIC_DEFINE(state, 2U);
 static void connected(struct bt_conn *conn, uint8_t err)
 {
 	if (err) {
-		printk("Connection failed (err 0x%02x)\n", err);
+		printk("Connection failed, err 0x%02x %s\n", err, bt_hci_err_to_str(err));
 	} else {
 		printk("Connected\n");
 
@@ -56,7 +56,7 @@ static void connected(struct bt_conn *conn, uint8_t err)
 
 static void disconnected(struct bt_conn *conn, uint8_t reason)
 {
-	printk("Disconnected (reason 0x%02x)\n", reason);
+	printk("Disconnected, reason 0x%02x %s\n", reason, bt_hci_err_to_str(reason));
 
 	(void)atomic_set_bit(state, STATE_DISCONNECTED);
 }
@@ -123,7 +123,7 @@ static void hrs_notify(void)
 /* The devicetree node identifier for the "led0" alias. */
 #define LED0_NODE DT_ALIAS(led0)
 
-#if DT_NODE_HAS_STATUS(LED0_NODE, okay)
+#if DT_NODE_HAS_STATUS_OKAY(LED0_NODE)
 #include <zephyr/drivers/gpio.h>
 #define HAS_LED     1
 static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
