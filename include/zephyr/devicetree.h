@@ -13,8 +13,8 @@
  * API for accessing the current application's devicetree macros.
  */
 
-#ifndef DEVICETREE_H
-#define DEVICETREE_H
+#ifndef ZEPHYR_INCLUDE_DEVICETREE_H_
+#define ZEPHYR_INCLUDE_DEVICETREE_H_
 
 #include <zephyr/devicetree_generated.h>
 #include <zephyr/irq_multilevel.h>
@@ -29,7 +29,7 @@
  * @brief devicetree.h API
  * @defgroup devicetree Devicetree
  * @since 2.2
- * @version 1.1.0
+ * @version 1.2.0
  * @{
  * @}
  */
@@ -47,10 +47,6 @@
  *
  * _ENUM_IDX: property's value as an index into bindings enum
  * _ENUM_VAL_<val>_EXISTS property's value as a token exists
- * _ENUM_TOKEN: property's value as a token into bindings enum (string
- *              enum values are identifiers) [deprecated, use _STRING_TOKEN]
- * _ENUM_UPPER_TOKEN: like _ENUM_TOKEN, but uppercased [deprecated, use
- *		      _STRING_UPPER_TOKEN]
  * _EXISTS: property is defined
  * _FOREACH_PROP_ELEM: helper for "iterating" over values in the property
  * _FOREACH_PROP_ELEM_VARGS: foreach functions with variable number of arguments
@@ -238,6 +234,13 @@
  * @return node identifier for the node with that alias
  */
 #define DT_ALIAS(alias) DT_CAT(DT_N_ALIAS_, alias)
+
+/**
+ * @brief Test if the devicetree has a given alias
+ * @param alias_name lowercase-and-underscores devicetree alias name
+ * @return 1 if the alias exists and refers to a node, 0 otherwise
+ */
+#define DT_HAS_ALIAS(alias_name) DT_NODE_EXISTS(DT_ALIAS(alias_name))
 
 /**
  * @brief Get a node identifier for an instance of a compatible
@@ -522,6 +525,92 @@
  * @return the node's name with unit-address as a string in the devicetree
  */
 #define DT_NODE_FULL_NAME(node_id) DT_CAT(node_id, _FULL_NAME)
+
+/**
+ * @brief Get the node's full name, including the unit-address, as an unquoted
+ *        sequence of tokens
+ *
+ * This macro returns removed "the quotes" from the node's full name.
+ *
+ * Example devicetree fragment:
+ *
+ * @code{.dts}
+ *     / {
+ *             soc {
+ *                     node: my-node@12345678 { ... };
+ *             };
+ *     };
+ * @endcode
+ *
+ * Example usage:
+ *
+ * @code{.c}
+ *    DT_NODE_FULL_NAME_UNQUOTED(DT_NODELABEL(node)) // my-node@12345678
+ * @endcode
+ *
+ * @param node_id node identifier
+ * @return the node's full name with unit-address as a sequence of tokens,
+ *         with no quotes
+ */
+#define DT_NODE_FULL_NAME_UNQUOTED(node_id) DT_CAT(node_id, _FULL_NAME_UNQUOTED)
+
+/**
+ * @brief Get the node's full name, including the unit-address, as a token.
+ *
+ * This macro returns removed "the quotes" from the node's full name and
+ * converting any non-alphanumeric characters to underscores.
+ *
+ * Example devicetree fragment:
+ *
+ * @code{.dts}
+ *     / {
+ *             soc {
+ *                     node: my-node@12345678 { ... };
+ *             };
+ *     };
+ * @endcode
+ *
+ * Example usage:
+ *
+ * @code{.c}
+ *    DT_NODE_FULL_NAME_TOKEN(DT_NODELABEL(node)) // my_node_12345678
+ * @endcode
+ *
+ * @param node_id node identifier
+ * @return the node's full name with unit-address as a token, i.e. without any quotes
+ *         and with special characters converted to underscores
+ */
+#define DT_NODE_FULL_NAME_TOKEN(node_id) DT_CAT(node_id, _FULL_NAME_TOKEN)
+
+/**
+ * @brief Like DT_NODE_FULL_NAME_TOKEN(), but uppercased.
+ *
+ * This macro returns removed "the quotes" from the node's full name,
+ * converting any non-alphanumeric characters to underscores, and
+ * capitalizing the result.
+ *
+ * Example devicetree fragment:
+ *
+ * @code{.dts}
+ *     / {
+ *             soc {
+ *                     node: my-node@12345678 { ... };
+ *             };
+ *     };
+ * @endcode
+ *
+ * Example usage:
+ *
+ * @code{.c}
+ *    DT_NODE_FULL_NAME_UPPER_TOKEN(DT_NODELABEL(node)) // MY_NODE_12345678
+ * @endcode
+ *
+ * @param node_id node identifier
+ * @return the node's full name with unit-address as an uppercased token,
+ *         i.e. without any quotes and with special characters converted
+ *         to underscores
+ */
+#define DT_NODE_FULL_NAME_UPPER_TOKEN(node_id) DT_CAT(node_id, _FULL_NAME_UPPER_TOKEN)
 
 /**
  * @brief Get a devicetree node's index into its parent's list of children
@@ -827,55 +916,92 @@
 		    (DT_PROP(node_id, prop)), (default_value))
 
 /**
- * @brief Get a property value's index into its enumeration values
+ * @brief Get a property array value's index into its enumeration values
  *
  * The return values start at zero.
  *
  * Example devicetree fragment:
  *
  * @code{.dts}
- *     usb1: usb@12340000 {
- *             maximum-speed = "full-speed";
- *     };
- *     usb2: usb@12341000 {
- *             maximum-speed = "super-speed";
+ *     some_node: some-node {
+ *         compat = "vend,enum-string-array";
+ *         foos =
+ *             <&phandle val1>,
+ *             <&phandle val2>,
+ *             <&phandle val3>;
+ *         foo-names = "default", "option3", "option1";
  *     };
  * @endcode
  *
  * Example bindings fragment:
  *
  * @code{.yaml}
- *     properties:
- *       maximum-speed:
- *         type: string
- *         enum:
- *            - "low-speed"
- *            - "full-speed"
- *            - "high-speed"
- *            - "super-speed"
+ * compatible: vend,enum-string-array
+ * properties:
+ *   foos:
+ *     type: phandle-array
+ *     description: |
+ *       Explanation about what this phandle-array exactly is for.
+ *
+ *   foo-names:
+ *     type: string-array
+ *     description: |
+ *       Some explanation about the available options
+ *       default: explain default
+ *       option1: explain option1
+ *       option2: explain option2
+ *       option3: explain option3
+ *     enum:
+ *       - default
+ *       - option1
+ *       - option2
+ *       - option3
  * @endcode
  *
  * Example usage:
  *
  * @code{.c}
- *     DT_ENUM_IDX(DT_NODELABEL(usb1), maximum_speed) // 1
- *     DT_ENUM_IDX(DT_NODELABEL(usb2), maximum_speed) // 3
+ *     DT_ENUM_IDX_BY_IDX(DT_NODELABEL(some_node), foo_names, 0) // 0
+ *     DT_ENUM_IDX_BY_IDX(DT_NODELABEL(some_node), foo_names, 2) // 1
  * @endcode
  *
  * @param node_id node identifier
  * @param prop lowercase-and-underscores property name
+ * @param idx the index to get
  * @return zero-based index of the property's value in its enum: list
  */
-#define DT_ENUM_IDX(node_id, prop) DT_CAT4(node_id, _P_, prop, _ENUM_IDX)
+#define DT_ENUM_IDX_BY_IDX(node_id, prop, idx) \
+	DT_CAT6(node_id, _P_, prop, _IDX_, idx, _ENUM_IDX)
 
 /**
- * @brief Like DT_ENUM_IDX(), but with a fallback to a default enum index
+ * @brief Equivalent to @ref DT_ENUM_IDX_BY_IDX(node_id, prop, 0).
+ * @param node_id node identifier
+ * @param prop lowercase-and-underscores property name
+ * @return zero-based index of the property's value in its enum: list
+ */
+#define DT_ENUM_IDX(node_id, prop) DT_ENUM_IDX_BY_IDX(node_id, prop, 0)
+
+/**
+ * @brief Like DT_ENUM_IDX_BY_IDX(), but with a fallback to a default enum index
  *
  * If the value exists, this expands to its zero based index value thanks to
- * DT_ENUM_IDX(node_id, prop).
+ * DT_ENUM_IDX_BY_IDX(node_id, prop, idx).
  *
  * Otherwise, this expands to provided default index enum value.
  *
+ * @param node_id node identifier
+ * @param prop lowercase-and-underscores property name
+ * @param idx the index to get
+ * @param default_idx_value a fallback index value to expand to
+ * @return zero-based index of the property's value in its enum if present,
+ *         default_idx_value otherwise
+ */
+#define DT_ENUM_IDX_BY_IDX_OR(node_id, prop, idx, default_idx_value) \
+	COND_CODE_1(DT_PROP_HAS_IDX(node_id, prop, idx), \
+		    (DT_ENUM_IDX_BY_IDX(node_id, prop, idx)), (default_idx_value))
+
+/**
+ * @brief Equivalent to DT_ENUM_IDX_BY_IDX_OR(node_id, prop, 0, default_idx_value).
  * @param node_id node identifier
  * @param prop lowercase-and-underscores property name
  * @param default_idx_value a fallback index value to expand to
@@ -883,19 +1009,29 @@
  *         default_idx_value otherwise
  */
 #define DT_ENUM_IDX_OR(node_id, prop, default_idx_value) \
-	COND_CODE_1(DT_NODE_HAS_PROP(node_id, prop), \
-		    (DT_ENUM_IDX(node_id, prop)), (default_idx_value))
+	DT_ENUM_IDX_BY_IDX_OR(node_id, prop, 0, default_idx_value)
 
 /**
- * @brief Does a node enumeration property have a given value?
+ * @brief Does a node enumeration property array have a given value?
  *
+ * @param node_id node identifier
+ * @param prop lowercase-and-underscores property name
+ * @param idx the index to get
+ * @param value lowercase-and-underscores enumeration value
+ * @return 1 if the node property has the value @a value, 0 otherwise.
+ */
+#define DT_ENUM_HAS_VALUE_BY_IDX(node_id, prop, idx, value) \
+	IS_ENABLED(DT_CAT8(node_id, _P_, prop, _IDX_, idx, _ENUM_VAL_, value, _EXISTS))
+
+/**
+ * @brief Equivalent to DT_ENUM_HAS_VALUE_BY_IDX(node_id, prop, 0, value).
  * @param node_id node identifier
  * @param prop lowercase-and-underscores property name
  * @param value lowercase-and-underscores enumeration value
  * @return 1 if the node property has the value @a value, 0 otherwise.
  */
 #define DT_ENUM_HAS_VALUE(node_id, prop, value) \
-	IS_ENABLED(DT_CAT6(node_id, _P_, prop, _ENUM_VAL_, value, _EXISTS))
+	DT_ENUM_HAS_VALUE_BY_IDX(node_id, prop, 0, value)
 
 /**
  * @brief Get a string property's value as a token.
@@ -2292,7 +2428,7 @@
  * @return size of the idx-th register block
  */
 #define DT_REG_SIZE_BY_IDX(node_id, idx) \
-	DT_CAT4(node_id, _REG_IDX_, idx, _VAL_SIZE)
+	DT_U32_C(DT_CAT4(node_id, _REG_IDX_, idx, _VAL_SIZE))
 
 /**
  * @brief Get a node's (only) register block address
@@ -2367,7 +2503,7 @@
  * @return size of the register block specified by name
  */
 #define DT_REG_SIZE_BY_NAME(node_id, name) \
-	DT_CAT4(node_id, _REG_NAME_, name, _VAL_SIZE)
+	DT_U32_C(DT_CAT4(node_id, _REG_NAME_, name, _VAL_SIZE))
 
 /**
  * @brief Like DT_REG_SIZE_BY_NAME(), but with a fallback to @p default_value
@@ -3879,6 +4015,16 @@
 	DT_FOREACH_CHILD_STATUS_OKAY_SEP_VARGS(DT_DRV_INST(inst), fn, sep, __VA_ARGS__)
 
 /**
+ * @brief Get a `DT_DRV_COMPAT` property array value's index into its enumeration values
+ * @param inst instance number
+ * @param prop lowercase-and-underscores property name
+ * @param idx the index to get
+ * @return zero-based index of the property's value in its enum: list
+ */
+#define DT_INST_ENUM_IDX_BY_IDX(inst, prop, idx) \
+	DT_ENUM_IDX_BY_IDX(DT_DRV_INST(inst), prop, idx)
+
+/**
  * @brief Get a `DT_DRV_COMPAT` value's index into its enumeration values
  * @param inst instance number
  * @param prop lowercase-and-underscores property name
@@ -3886,6 +4032,18 @@
  */
 #define DT_INST_ENUM_IDX(inst, prop) \
 	DT_ENUM_IDX(DT_DRV_INST(inst), prop)
+
+/**
+ * @brief Like DT_INST_ENUM_IDX_BY_IDX(), but with a fallback to a default enum index
+ * @param inst instance number
+ * @param prop lowercase-and-underscores property name
+ * @param idx the index to get
+ * @param default_idx_value a fallback index value to expand to
+ * @return zero-based index of the property's value in its enum if present,
+ *         default_idx_value otherwise
+ */
+#define DT_INST_ENUM_IDX_BY_IDX_OR(inst, prop, idx, default_idx_value) \
+	DT_ENUM_IDX_BY_IDX_OR(DT_DRV_INST(inst), prop, idx, default_idx_value)
 
 /**
  * @brief Like DT_INST_ENUM_IDX(), but with a fallback to a default enum index
@@ -3897,6 +4055,17 @@
  */
 #define DT_INST_ENUM_IDX_OR(inst, prop, default_idx_value) \
 	DT_ENUM_IDX_OR(DT_DRV_INST(inst), prop, default_idx_value)
+
+/**
+ * @brief Does a `DT_DRV_COMPAT` enumeration property have a given value by index?
+ * @param inst instance number
+ * @param prop lowercase-and-underscores property name
+ * @param idx the index to get
+ * @param value lowercase-and-underscores enumeration value
+ * @return zero-based index of the property's value in its enum
+ */
+#define DT_INST_ENUM_HAS_VALUE_BY_IDX(inst, prop, idx, value) \
+	DT_ENUM_HAS_VALUE_BY_IDX(DT_DRV_INST(inst), prop, idx, value)
 
 /**
  * @brief Does a `DT_DRV_COMPAT` enumeration property have a given value?
@@ -4995,4 +5164,4 @@
 #include <zephyr/devicetree/reset.h>
 #include <zephyr/devicetree/mbox.h>
 
-#endif /* DEVICETREE_H */
+#endif /* ZEPHYR_INCLUDE_DEVICETREE_H_ */

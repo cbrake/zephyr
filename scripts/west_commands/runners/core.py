@@ -625,6 +625,15 @@ class ZephyrBinaryRunner(abc.ABC):
         '''Hook for adding runner-specific options.'''
 
     @classmethod
+    def args_from_previous_runner(cls, previous_runner,
+                                  args: argparse.Namespace):
+        '''Update arguments from a previously created runner.
+
+        This is intended for propagating relevant user responses
+        between multiple runs of the same runner, for example a
+        JTAG serial number.'''
+
+    @classmethod
     def create(cls, cfg: RunnerConfig,
                args: argparse.Namespace) -> 'ZephyrBinaryRunner':
         '''Create an instance from command-line arguments.
@@ -914,7 +923,8 @@ class ZephyrBinaryRunner(abc.ABC):
         # CONFIG_SHELL_VT100_COMMANDS etc.
         if shutil.which('nc') is not None:
             client_cmd = ['nc', host, str(port)]
-            self.run_client(client_cmd)
+            # Note: netcat (nc) does not handle sigint, so cannot use run_client()
+            self.check_call(client_cmd)
             return
 
         # Otherwise, use a pure python implementation. This will work well for logging,

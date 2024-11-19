@@ -64,8 +64,8 @@ static struct bt_le_per_adv_sync *pa_sync;
 static uint32_t broadcaster_broadcast_id;
 static struct audio_test_stream broadcast_sink_streams[CONFIG_BT_BAP_BROADCAST_SNK_STREAM_COUNT];
 
-static const struct bt_audio_codec_qos_pref unicast_qos_pref =
-	BT_AUDIO_CODEC_QOS_PREF(true, BT_GAP_LE_PHY_2M, 0u, 60u, 20000u, 40000u, 20000u, 40000u);
+static const struct bt_bap_qos_cfg_pref unicast_qos_pref =
+	BT_BAP_QOS_CFG_PREF(true, BT_GAP_LE_PHY_2M, 0u, 60u, 20000u, 40000u, 20000u, 40000u);
 
 static bool auto_start_sink_streams;
 
@@ -401,9 +401,15 @@ static int bis_sync_req_cb(struct bt_conn *conn,
 			   const struct bt_bap_scan_delegator_recv_state *recv_state,
 			   const uint32_t bis_sync_req[CONFIG_BT_BAP_BASS_MAX_SUBGROUPS])
 {
-	/* We only care about a single subgroup in this test */
+	uint32_t total_bis = 0U;
+
 	broadcaster_broadcast_id = recv_state->broadcast_id;
-	if (bis_sync_req[0] != 0) {
+
+	for (int i = 0; i < recv_state->num_subgroups; i++) {
+		total_bis |= bis_sync_req[i];
+	}
+
+	if (total_bis != 0U) {
 		SET_FLAG(flag_bis_sync_requested);
 	} else {
 		UNSET_FLAG(flag_bis_sync_requested);
@@ -414,7 +420,7 @@ static int bis_sync_req_cb(struct bt_conn *conn,
 
 static void broadcast_code_cb(struct bt_conn *conn,
 			      const struct bt_bap_scan_delegator_recv_state *recv_state,
-			      const uint8_t broadcast_code[BT_AUDIO_BROADCAST_CODE_SIZE])
+			      const uint8_t broadcast_code[BT_ISO_BROADCAST_CODE_SIZE])
 {
 	printk("Broadcast code received for %p\n", recv_state);
 
@@ -452,7 +458,7 @@ static struct bt_bap_stream *unicast_stream_alloc(void)
 static int unicast_server_config(struct bt_conn *conn, const struct bt_bap_ep *ep,
 				 enum bt_audio_dir dir, const struct bt_audio_codec_cfg *codec_cfg,
 				 struct bt_bap_stream **stream,
-				 struct bt_audio_codec_qos_pref *const pref,
+				 struct bt_bap_qos_cfg_pref *const pref,
 				 struct bt_bap_ascs_rsp *rsp)
 {
 	printk("ASE Codec Config: conn %p ep %p dir %u\n", conn, ep, dir);
@@ -478,7 +484,7 @@ static int unicast_server_config(struct bt_conn *conn, const struct bt_bap_ep *e
 
 static int unicast_server_reconfig(struct bt_bap_stream *stream, enum bt_audio_dir dir,
 				   const struct bt_audio_codec_cfg *codec_cfg,
-				   struct bt_audio_codec_qos_pref *const pref,
+				   struct bt_bap_qos_cfg_pref *const pref,
 				   struct bt_bap_ascs_rsp *rsp)
 {
 	printk("ASE Codec Reconfig: stream %p\n", stream);
@@ -493,27 +499,12 @@ static int unicast_server_reconfig(struct bt_bap_stream *stream, enum bt_audio_d
 	return -ENOEXEC;
 }
 
-static int unicast_server_qos(struct bt_bap_stream *stream, const struct bt_audio_codec_qos *qos,
+static int unicast_server_qos(struct bt_bap_stream *stream, const struct bt_bap_qos_cfg *qos,
 			      struct bt_bap_ascs_rsp *rsp)
 {
 	printk("QoS: stream %p qos %p\n", stream, qos);
 
 	print_qos(qos);
-
-	return 0;
-}
-
-static int unicast_server_enable(struct bt_bap_stream *stream, const uint8_t meta[],
-				 size_t meta_len, struct bt_bap_ascs_rsp *rsp)
-{
-	printk("Enable: stream %p meta_len %zu\n", stream, meta_len);
-
-	return 0;
-}
-
-static int unicast_server_start(struct bt_bap_stream *stream, struct bt_bap_ascs_rsp *rsp)
-{
-	printk("Start: stream %p\n", stream);
 
 	return 0;
 }
@@ -529,6 +520,21 @@ static bool ascs_data_func_cb(struct bt_data *data, void *user_data)
 	}
 
 	return true;
+}
+
+static int unicast_server_enable(struct bt_bap_stream *stream, const uint8_t meta[],
+				 size_t meta_len, struct bt_bap_ascs_rsp *rsp)
+{
+	printk("Enable: stream %p meta_len %zu\n", stream, meta_len);
+
+	return bt_audio_data_parse(meta, meta_len, ascs_data_func_cb, rsp);
+}
+
+static int unicast_server_start(struct bt_bap_stream *stream, struct bt_bap_ascs_rsp *rsp)
+{
+	printk("Start: stream %p\n", stream);
+
+	return 0;
 }
 
 static int unicast_server_metadata(struct bt_bap_stream *stream, const uint8_t meta[],
@@ -638,7 +644,7 @@ void test_start_adv(void)
 	struct bt_le_ext_adv *ext_adv;
 
 	/* Create a connectable non-scannable advertising set */
-	err = bt_le_ext_adv_create(BT_LE_ADV_CONN_ONE_TIME, NULL, &ext_adv);
+	err = bt_le_ext_adv_create(BT_LE_ADV_CONN_FAST_1, NULL, &ext_adv);
 	if (err != 0) {
 		FAIL("Failed to create advertising set (err %d)\n", err);
 
@@ -752,7 +758,7 @@ static void init(void)
 			bt_cap_stream_ops_register(&unicast_streams[i], &unicast_stream_ops);
 		}
 
-		err = bt_le_adv_start(BT_LE_ADV_CONN_ONE_TIME, cap_acceptor_ad,
+		err = bt_le_adv_start(BT_LE_ADV_CONN_FAST_1, cap_acceptor_ad,
 				      ARRAY_SIZE(cap_acceptor_ad), NULL, 0);
 		if (err != 0) {
 			FAIL("Advertising failed to start (err %d)\n", err);
@@ -792,6 +798,7 @@ static void init(void)
 		UNSET_FLAG(flag_pa_request);
 		UNSET_FLAG(flag_received);
 		UNSET_FLAG(flag_base_metadata_updated);
+		UNSET_FLAG(flag_bis_sync_requested);
 
 		for (size_t i = 0U; i < ARRAY_SIZE(broadcast_sink_streams); i++) {
 			bt_cap_stream_ops_register(
@@ -1039,10 +1046,12 @@ static void test_cap_acceptor_broadcast_reception(void)
 {
 	static struct bt_bap_stream *bap_streams[ARRAY_SIZE(broadcast_sink_streams)];
 	size_t stream_count;
+	int err;
 
 	init();
 
 	WAIT_FOR_FLAG(flag_pa_request);
+	WAIT_FOR_FLAG(flag_bis_sync_requested);
 
 	pa_sync_create();
 
@@ -1051,12 +1060,23 @@ static void test_cap_acceptor_broadcast_reception(void)
 	sink_wait_for_data();
 
 	/* Since we are re-using the BAP broadcast source test
-	 * we get a metadata update, and we need to send an extra
-	 * backchannel sync
+	 * we get a metadata update
 	 */
 	base_wait_for_metadata_update();
 
-	backchannel_sync_send_all(); /* let broadcaster know we can stop the source */
+	/* when flag_bis_sync_requested is unset the bis_sync for all subgroups were set to 0 */
+	WAIT_FOR_UNSET_FLAG(flag_bis_sync_requested);
+
+	UNSET_FLAG(flag_syncable);
+	err = bt_bap_broadcast_sink_stop(g_broadcast_sink);
+	if (err != 0) {
+		FAIL("Unable to stop the sink: %d\n", err);
+		return;
+	}
+
+	WAIT_FOR_FLAG(flag_syncable);
+	/* Although in theory we can now sync, in practice we can not since all BIS-syncs are 0 */
+	backchannel_sync_send_all(); /* signal that we have stopped listening */
 
 	wait_for_streams_stop(stream_count);
 

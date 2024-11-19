@@ -1769,16 +1769,17 @@ static int cmd_scan_filter_set_addr(const struct shell *sh, size_t argc,
 {
 	const size_t max_cpy_len = sizeof(scan_filter.addr) - 1;
 	const char *addr_arg = argv[1];
+	size_t len = strlen(addr_arg);
 
 	/* Validate length including null terminator. */
-	if (strlen(addr_arg) > max_cpy_len) {
+	if (len > max_cpy_len) {
 		shell_error(ctx_shell, "Invalid address string: %s\n",
 			    addr_arg);
 		return -ENOEXEC;
 	}
 
 	/* Validate input to check if valid (subset of) BT address */
-	for (size_t i = 0; i < strlen(addr_arg); i++) {
+	for (size_t i = 0; i < len; i++) {
 		const char c = addr_arg[i];
 		uint8_t tmp;
 
@@ -2003,7 +2004,7 @@ static int cmd_advertise(const struct shell *sh, size_t argc, char *argv[])
 	param.interval_max = BT_GAP_ADV_FAST_INT_MAX_2;
 
 	if (!strcmp(argv[1], "on")) {
-		param.options = BT_LE_ADV_OPT_CONNECTABLE;
+		param.options = BT_LE_ADV_OPT_CONN;
 	} else if (!strcmp(argv[1], "nconn")) {
 		param.options = 0U;
 	} else {
@@ -2033,8 +2034,6 @@ static int cmd_advertise(const struct shell *sh, size_t argc, char *argv[])
 		} else if (!strcmp(arg, "name-ad")) {
 			name_ad = true;
 			name_sd = false;
-		} else if (!strcmp(arg, "one-time")) {
-			param.options |= BT_LE_ADV_OPT_ONE_TIME;
 		} else if (!strcmp(arg, "disable-37")) {
 			param.options |= BT_LE_ADV_OPT_DISABLE_CHAN_37;
 		} else if (!strcmp(arg, "disable-38")) {
@@ -2058,7 +2057,7 @@ static int cmd_advertise(const struct shell *sh, size_t argc, char *argv[])
 
 	atomic_clear(adv_opt);
 	atomic_set_bit_to(adv_opt, SHELL_ADV_OPT_CONNECTABLE,
-			  (param.options & BT_LE_ADV_OPT_CONNECTABLE) > 0);
+			  (param.options & BT_LE_ADV_OPT_CONN) > 0);
 	atomic_set_bit_to(adv_opt, SHELL_ADV_OPT_DISCOVERABLE, discoverable);
 	atomic_set_bit_to(adv_opt, SHELL_ADV_OPT_APPEARANCE, appearance);
 
@@ -2143,10 +2142,10 @@ static bool adv_param_parse(size_t argc, char *argv[],
 	memset(param, 0, sizeof(struct bt_le_adv_param));
 
 	if (!strcmp(argv[1], "conn-scan")) {
-		param->options |= BT_LE_ADV_OPT_CONNECTABLE;
+		param->options |= BT_LE_ADV_OPT_CONN;
 		param->options |= BT_LE_ADV_OPT_SCANNABLE;
 	} else if (!strcmp(argv[1], "conn-nscan")) {
-		param->options |= BT_LE_ADV_OPT_CONNECTABLE;
+		param->options |= BT_LE_ADV_OPT_CONN;
 	} else if (!strcmp(argv[1], "nconn-scan")) {
 		param->options |= BT_LE_ADV_OPT_SCANNABLE;
 	} else if (!strcmp(argv[1], "nconn-nscan")) {
@@ -2245,7 +2244,7 @@ static int cmd_adv_create(const struct shell *sh, size_t argc, char *argv[])
 
 	atomic_clear(adv_set_opt[adv_index]);
 	atomic_set_bit_to(adv_set_opt[adv_index], SHELL_ADV_OPT_CONNECTABLE,
-			  (param.options & BT_LE_ADV_OPT_CONNECTABLE) > 0);
+			  (param.options & BT_LE_ADV_OPT_CONN) > 0);
 	atomic_set_bit_to(adv_set_opt[adv_index], SHELL_ADV_OPT_EXT_ADV,
 			  (param.options & BT_LE_ADV_OPT_EXT_ADV) > 0);
 
@@ -5006,7 +5005,7 @@ SHELL_STATIC_SUBCMD_SET_CREATE(bt_cmds,
 	SHELL_CMD_ARG(advertise, NULL,
 		      "<type: off, on, nconn> [mode: discov, non_discov] "
 		      "[filter-accept-list: fal, fal-scan, fal-conn] [identity] [no-name] "
-		      "[one-time] [name-ad] [appearance] "
+		      "[name-ad] [appearance] "
 		      "[disable-37] [disable-38] [disable-39]",
 		      cmd_advertise, 2, 8),
 #if defined(CONFIG_BT_PERIPHERAL)

@@ -19,8 +19,10 @@ complete code tree buildable.
 
 When using (at least) one ``-v`` option, twister's console output
 shows for every test application how the test is run (qemu, native_sim, etc.) or
-whether the binary was just built.  There are a few reasons why twister
-only builds a test and doesn't run it:
+whether the binary was just built. The resultant
+:ref:`status <twister_statuses>`
+of a test is likewise reported in the ``twister.json`` and other report files.
+There are a few reasons why twister only builds a test and doesn't run it:
 
 - The test is marked as ``build_only: true`` in its ``.yaml``
   configuration file.
@@ -214,6 +216,8 @@ env:
   used, for example, only if some required software or hardware is present, and to signal that
   presence to twister using these environment variables.
 
+.. _twister_tests_long_version:
+
 Tests
 ******
 
@@ -341,6 +345,23 @@ extra_args: <list of extra arguments>
     Extra arguments to pass to build tool when building or running the
     test scenario.
 
+    Using namespacing, it is possible to apply extra_args only to some
+    hardware. Currently architectures/platforms/simulation are supported:
+
+    .. code-block:: yaml
+
+        common:
+          tags: drivers adc
+        tests:
+          test:
+            depends_on: adc
+          test_async:
+            extra_args:
+              - arch:x86:CONFIG_ADC_ASYNC=y
+              - platform:qemu_x86:CONFIG_DEBUG=y
+              - platform:mimxrt1060_evk:SHIELD=rk043fn66hs_ctg
+              - simulation:qemu:CONFIG_MPU=y
+
 extra_configs: <list of extra configurations>
     Extra configuration options to be merged with a main prj.conf
     when building or running the test scenario. For example:
@@ -398,11 +419,11 @@ levels: <list of levels>
     test will be selectable using the command line option ``--level <level name>``
 
 min_ram: <integer>
-    minimum amount of RAM in KB needed for this test to build and run. This is
+    estimated minimum amount of RAM in KB needed for this test to build and run. This is
     compared with information provided by the board metadata.
 
 min_flash: <integer>
-    minimum amount of ROM in KB needed for this test to build and run. This is
+    estimated minimum amount of ROM in KB needed for this test to build and run. This is
     compared with information provided by the board metadata.
 
 .. _twister_test_case_timeout:
