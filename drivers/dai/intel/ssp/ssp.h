@@ -76,7 +76,7 @@
 #error "Missing ssp definitions"
 #endif
 
-#if CONFIG_INTEL_MN
+#if SSP_IP_VER == SSP_IP_VER_1_0
 /** \brief BCLKs can be driven by multiple sources - M/N or XTAL directly.
  *	   Even in the case of M/N, the actual clock source can be XTAL,
  *	   Audio cardinal clock (24.576) or 96 MHz PLL.
@@ -104,7 +104,7 @@ struct dai_intel_ssp_mn {
 	int mclk_rate[DAI_INTEL_SSP_NUM_MCLK];
 	int mclk_source_clock;
 
-#if CONFIG_INTEL_MN
+#if SSP_IP_VER == SSP_IP_VER_1_0
 	enum bclk_source bclk_sources[(CONFIG_DAI_INTEL_SSP_NUM_BASE +
 				       CONFIG_DAI_INTEL_SSP_NUM_EXT)];
 	int bclk_source_mn_clock;
@@ -137,6 +137,7 @@ struct dai_intel_ssp_plat_data {
 #if SSP_IP_VER > SSP_IP_VER_1_5
 	uint32_t hdamlssp_base;
 	uint32_t i2svss_base;
+	uint32_t link_clock;
 #endif
 	int irq;
 	const char *irq_name;

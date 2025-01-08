@@ -21,15 +21,7 @@
 #include <zephyr/settings/settings.h>
 
 #if defined(CONFIG_BT_GATT_CACHING)
-#if defined(CONFIG_BT_USE_PSA_API)
 #include "psa/crypto.h"
-#else /* CONFIG_BT_USE_PSA_API */
-#include <tinycrypt/constants.h>
-#include <tinycrypt/utils.h>
-#include <tinycrypt/aes.h>
-#include <tinycrypt/cmac_mode.h>
-#include <tinycrypt/ccm_mode.h>
-#endif /* CONFIG_BT_USE_PSA_API */
 #endif /* CONFIG_BT_GATT_CACHING */
 
 #include <zephyr/bluetooth/hci.h>
@@ -37,7 +29,6 @@
 #include <zephyr/bluetooth/conn.h>
 #include <zephyr/bluetooth/uuid.h>
 #include <zephyr/bluetooth/gatt.h>
-#include <zephyr/drivers/bluetooth/hci_driver.h>
 
 #include "common/bt_str.h"
 
@@ -703,7 +694,6 @@ static ssize_t cf_write(struct bt_conn *conn, const struct bt_gatt_attr *attr,
 	return len;
 }
 
-#if defined(CONFIG_BT_USE_PSA_API)
 struct gen_hash_state {
 	psa_mac_operation_t operation;
 	psa_key_id_t key;
@@ -752,43 +742,6 @@ static int db_hash_finish(struct gen_hash_state *state)
 	}
 	return 0;
 }
-
-#else /* CONFIG_BT_USE_PSA_API */
-struct gen_hash_state {
-	struct tc_cmac_struct state;
-	struct tc_aes_key_sched_struct sched;
-	int err;
-};
-
-static int db_hash_setup(struct gen_hash_state *state, uint8_t *key)
-{
-	if (tc_cmac_setup(&(state->state), key, &(state->sched)) == TC_CRYPTO_FAIL) {
-		LOG_ERR("CMAC setup failed");
-		return -EIO;
-	}
-	return 0;
-}
-
-static int db_hash_update(struct gen_hash_state *state, uint8_t *data, size_t len)
-{
-	if (tc_cmac_update(&state->state, data, len) == TC_CRYPTO_FAIL) {
-		LOG_ERR("CMAC update failed");
-		return -EIO;
-	}
-	return 0;
-}
-
-static int db_hash_finish(struct gen_hash_state *state)
-{
-	if (tc_cmac_final(db_hash.hash, &(state->state)) == TC_CRYPTO_FAIL) {
-		LOG_ERR("CMAC finish failed");
-		return -EIO;
-	}
-	return 0;
-}
-
-
-#endif /* CONFIG_BT_USE_PSA_API */
 
 union hash_attr_value {
 	/* Bluetooth Core Specification Version 5.3 | Vol 3, Part G
@@ -1307,9 +1260,11 @@ static int gatt_register(struct bt_gatt_service *svc)
 populate:
 	/* Populate the handles and append them to the list */
 	for (; attrs && count; attrs++, count--) {
+		attrs->_auto_assigned_handle = 0;
 		if (!attrs->handle) {
 			/* Allocate handle if not set already */
 			attrs->handle = ++handle;
+			attrs->_auto_assigned_handle = 1;
 		} else if (attrs->handle > handle) {
 			/* Use existing handle if valid */
 			handle = attrs->handle;
@@ -1727,6 +1682,12 @@ static int gatt_unregister(struct bt_gatt_service *svc)
 		if (is_host_managed_ccc(attr)) {
 			gatt_unregister_ccc(attr->user_data);
 		}
+
+		/* The stack should not clear any handles set by the user. */
+		if (attr->_auto_assigned_handle) {
+			attr->handle = 0;
+			attr->_auto_assigned_handle = 0;
+		}
 	}
 
 	return 0;
@@ -1782,9 +1743,17 @@ int bt_gatt_service_register(struct bt_gatt_service *svc)
 
 int bt_gatt_service_unregister(struct bt_gatt_service *svc)
 {
+	uint16_t sc_start_handle;
+	uint16_t sc_end_handle;
 	int err;
 
 	__ASSERT(svc, "invalid parameters\n");
+
+	/* gatt_unregister() clears handles when those were auto-assigned
+	 * by host
+	 */
+	sc_start_handle = svc->attrs[0].handle;
+	sc_end_handle = svc->attrs[svc->attr_count - 1].handle;
 
 	k_sched_lock();
 
@@ -1800,8 +1769,7 @@ int bt_gatt_service_unregister(struct bt_gatt_service *svc)
 		return 0;
 	}
 
-	sc_indicate(svc->attrs[0].handle,
-		    svc->attrs[svc->attr_count - 1].handle);
+	sc_indicate(sc_start_handle, sc_end_handle);
 
 	db_changed();
 
@@ -2456,11 +2424,9 @@ static void gatt_add_nfy_to_buf(struct net_buf *buf,
 {
 	struct bt_att_notify_mult *nfy;
 
-	nfy = net_buf_add(buf, sizeof(*nfy));
+	nfy = net_buf_add(buf, sizeof(*nfy) + params->len);
 	nfy->handle = sys_cpu_to_le16(handle);
 	nfy->len = sys_cpu_to_le16(params->len);
-
-	net_buf_add(buf, params->len);
 	(void)memcpy(nfy->value, params->data, params->len);
 }
 
@@ -2571,10 +2537,8 @@ static int gatt_notify(struct bt_conn *conn, uint16_t handle,
 
 	LOG_DBG("conn %p handle 0x%04x", conn, handle);
 
-	nfy = net_buf_add(buf, sizeof(*nfy));
+	nfy = net_buf_add(buf, sizeof(*nfy) + params->len);
 	nfy->handle = sys_cpu_to_le16(handle);
-
-	net_buf_add(buf, params->len);
 	memcpy(nfy->value, params->data, params->len);
 
 	bt_att_set_tx_meta_data(buf, params->func, params->user_data, BT_ATT_CHAN_OPT(params));
@@ -2739,10 +2703,8 @@ static int gatt_indicate(struct bt_conn *conn, uint16_t handle,
 
 	bt_att_set_tx_meta_data(buf, NULL, NULL, BT_ATT_CHAN_OPT(params));
 
-	ind = net_buf_add(buf, sizeof(*ind));
+	ind = net_buf_add(buf, sizeof(*ind) + params->len);
 	ind->handle = sys_cpu_to_le16(handle);
-
-	net_buf_add(buf, params->len);
 	memcpy(ind->value, params->data, params->len);
 
 	LOG_DBG("conn %p handle 0x%04x", conn, handle);
@@ -6447,7 +6409,7 @@ static int bt_gatt_clear_cf(uint8_t id, const bt_addr_le_t *addr)
 	}
 
 	if (IS_ENABLED(CONFIG_BT_SETTINGS)) {
-		return bt_settings_delete_ccc(id, addr);
+		return bt_settings_delete_cf(id, addr);
 	}
 
 	return 0;

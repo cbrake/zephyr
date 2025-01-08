@@ -76,7 +76,7 @@
 };
 
 &adc0 {
-compatible = "ambiq,adc";
+	compatible = "ambiq,adc";
 	pinctrl-0 = <&adc0_default>;
 	pinctrl-names = "default";
 	status = "okay";
@@ -147,6 +147,10 @@ compatible = "ambiq,adc";
 			reg = <0x001e4000 0x4000>;
 		};
 	};
+};
+
+&stimer0 {
+	clk-source = <3>;
 };
 
 zephyr_udc0: &usb {

@@ -122,7 +122,7 @@ static void dai_ssp_update_bits(struct dai_intel_ssp *dp, uint32_t reg, uint32_t
 	sys_write32((sys_read32(dest) & (~mask)) | (val & mask), dest);
 }
 
-#if CONFIG_INTEL_MN
+#if SSP_IP_VER == SSP_IP_VER_1_0
 static int dai_ssp_gcd(int a, int b)
 {
 	int aux;
@@ -411,7 +411,7 @@ static void dai_ssp_mn_release_mclk(struct dai_intel_ssp *dp, uint32_t mclk_id)
 	k_spin_unlock(&mp->lock, key);
 }
 
-#if CONFIG_INTEL_MN
+#if SSP_IP_VER == SSP_IP_VER_1_0
 /**
  * \brief Finds valid M/(N * SCR) values for given frequencies.
  * \param[in] freq SSP clock frequency.
@@ -1156,7 +1156,7 @@ static void dai_ssp_mclk_disable_unprepare(struct dai_intel_ssp *dp)
 
 static int dai_ssp_bclk_prepare_enable(struct dai_intel_ssp *dp)
 {
-#if !(CONFIG_INTEL_MN)
+#if SSP_IP_VER != SSP_IP_VER_1_0
 	struct dai_intel_ssp_freq_table *ft = dai_get_ftable(dp);
 #endif
 	struct dai_intel_ssp_plat_data *ssp_plat_data = dai_get_plat_data(dp);
@@ -1170,7 +1170,7 @@ static int dai_ssp_bclk_prepare_enable(struct dai_intel_ssp *dp)
 
 	sscr0 = sys_read32(dai_base(dp) + SSCR0);
 
-#if CONFIG_INTEL_MN
+#if SSP_IP_VER == SSP_IP_VER_1_0
 	bool need_ecs = false;
 	/* BCLK config */
 	ret = dai_ssp_mn_set_bclk(dp, dp->dai_index, ssp_plat_data->params.bclk_rate,
@@ -1191,12 +1191,10 @@ static int dai_ssp_bclk_prepare_enable(struct dai_intel_ssp *dp)
 	mdiv = ft[DAI_INTEL_SSP_DEFAULT_IDX].freq / ssp_plat_data->params.bclk_rate;
 #endif
 
-#if SSP_IP_VER < CONFIG_SOC_INTEL_ACE30
-#if CONFIG_INTEL_MN
+#if SSP_IP_VER == SSP_IP_VER_1_0
 	if (need_ecs) {
 		sscr0 |= SSCR0_ECS;
 	}
-#endif
 #endif
 
 	/* clock divisor is SCR + 1 */
@@ -1231,7 +1229,7 @@ static void dai_ssp_bclk_disable_unprepare(struct dai_intel_ssp *dp)
 	if (!(ssp_plat_data->clk_active & SSP_CLK_BCLK_ACTIVE)) {
 		return;
 	}
-#if CONFIG_INTEL_MN
+#if SSP_IP_VER == SSP_IP_VER_1_0
 	dai_ssp_mn_release_bclk(dp, ssp_plat_data->ssp_index);
 #endif
 	ssp_plat_data->clk_active &= ~SSP_CLK_BCLK_ACTIVE;
@@ -1938,6 +1936,9 @@ static int dai_ssp_parse_tlv(struct dai_intel_ssp *dp, const uint8_t *aux_ptr, s
 	struct ssp_intel_ext_ctl *ext;
 #if SSP_IP_VER >= SSP_IP_VER_1_5
 	struct ssp_intel_link_ctl *link;
+#if SSP_IP_VER > SSP_IP_VER_1_5
+	struct dai_intel_ssp_plat_data *ssp = dai_get_plat_data(dp);
+#endif
 #endif
 
 	for (i = 0; i < aux_len; i += hop) {
@@ -1991,6 +1992,7 @@ static int dai_ssp_parse_tlv(struct dai_intel_ssp *dp, const uint8_t *aux_ptr, s
 				    I2CLCTL_MLCS(link->clock_source), dai_ip_base(dp) +
 				    I2SLCTL_OFFSET);
 #elif SSP_IP_VER > SSP_IP_VER_1_5
+			ssp->link_clock = link->clock_source;
 			sys_write32((sys_read32(dai_i2svss_base(dp) + I2SLCTL_OFFSET) &
 				    ~I2CLCTL_MLCS(0x7)) |
 				    I2CLCTL_MLCS(link->clock_source),
@@ -2077,8 +2079,6 @@ static void dai_ssp_set_reg_config(struct dai_intel_ssp *dp, const struct dai_co
 	struct dai_intel_ssp_plat_data *ssp_plat_data = dai_get_plat_data(dp);
 	const struct dai_intel_ipc4_ssp_config_ver_3_0 *regs = spec_config;
 	uint32_t sscr1 = 0;
-	uint32_t sstsa = 0;
-	uint32_t ssrsa = 0;
 	uint32_t ssc0 = regs->ssc0;
 	sscr1 = regs->ssc1 & ~(SSCR1_RSVD21);
 
@@ -2555,6 +2555,14 @@ static void ssp_acquire_ip(struct dai_intel_ssp *dp)
 
 		/* Disable dynamic clock gating before touching any register */
 		dai_ssp_pm_runtime_dis_ssp_clk_gating(dp, ssp->ssp_index);
+
+#if SSP_IP_VER >= SSP_IP_VER_2_0
+		/* Switch to selected clock source */
+		sys_write32((sys_read32(dai_i2svss_base(dp) + I2SLCTL_OFFSET) &
+			    ~I2CLCTL_MLCS(0x7)) |
+			    I2CLCTL_MLCS(ssp->link_clock),
+			    dai_i2svss_base(dp) + I2SLCTL_OFFSET);
+#endif
 	}
 }
 
@@ -2579,6 +2587,14 @@ static void ssp_release_ip(struct dai_intel_ssp *dp)
 		}
 
 		dai_ssp_post_stop(dp);
+
+#if SSP_IP_VER >= SSP_IP_VER_2_0
+		/* Restore default XTAL clock source */
+		sys_write32((sys_read32(dai_i2svss_base(dp) + I2SLCTL_OFFSET) &
+			    ~I2CLCTL_MLCS(0x7)) |
+			    I2CLCTL_MLCS(DAI_INTEL_SSP_CLOCK_XTAL_OSCILLATOR),
+			    dai_i2svss_base(dp) + I2SLCTL_OFFSET);
+#endif
 
 		dai_ssp_pm_runtime_en_ssp_clk_gating(dp, ssp->ssp_index);
 
@@ -2611,7 +2627,7 @@ static int dai_ssp_probe(struct dai_intel_ssp *dp)
 	dp->state[DAI_DIR_PLAYBACK] = DAI_STATE_READY;
 	dp->state[DAI_DIR_CAPTURE] = DAI_STATE_READY;
 
-#if CONFIG_INTEL_MN
+#if SSP_IP_VER == SSP_IP_VER_1_0
 	/* Reset M/N, power-gating functions need it */
 	dai_ssp_mn_reset_bclk_divider(dp, ssp_plat_data->ssp_index);
 #endif
@@ -2665,14 +2681,7 @@ static int dai_intel_ssp_init_device(const struct device *dev)
 static int ssp_init(const struct device *dev)
 {
 	dai_intel_ssp_init_device(dev);
-
-	if (pm_device_on_power_domain(dev)) {
-		pm_device_init_off(dev);
-	} else {
-		pm_device_init_suspended(dev);
-	}
-
-	return pm_device_runtime_enable(dev);
+	return pm_device_driver_init(dev, ssp_pm_action);
 }
 
 static int dai_ssp_dma_control_set(const struct device *dev,
@@ -2699,7 +2708,7 @@ static int dai_ssp_dma_control_set(const struct device *dev,
 	return dai_ssp_parse_tlv(dp, bespoke_cfg, size);
 }
 
-static struct dai_driver_api dai_intel_ssp_api_funcs = {
+static DEVICE_API(dai, dai_intel_ssp_api_funcs) = {
 	.probe			= pm_device_runtime_get,
 	.remove			= pm_device_runtime_put,
 	.config_set		= dai_ssp_config_set,

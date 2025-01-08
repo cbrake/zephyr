@@ -26,6 +26,7 @@
 		led2 = &led2;
 		sw0 = &button0;
 		sw1 = &button1;
+		rtc = &rtc0;
 	};
 
 	leds {
@@ -79,6 +80,11 @@
 	status = "okay";
 };
 
+&rtc0 {
+	status = "okay";
+	clock = "XTAL";
+};
+
 &wdt0 {
 	status = "okay";
 };
@@ -129,6 +135,10 @@
 			reg = <0x001e4000 0x4000>;
 		};
 	};
+};
+
+&stimer0 {
+	clk-source = <3>;
 };
 
 &xo32m {
