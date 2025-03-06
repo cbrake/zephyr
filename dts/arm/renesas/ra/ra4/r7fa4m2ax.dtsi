@@ -139,6 +139,11 @@
 			#pwm-cells = <3>;
 			status = "disabled";
 		};
+
+		trng: trng {
+			compatible = "renesas,ra-sce9-rng";
+			status = "disabled";
+		};
 	};
 
 	clocks: clocks {
@@ -210,6 +215,7 @@
 
 			iclk: iclk {
 				compatible = "renesas,ra-cgc-pclk";
+				clock-frequency = <100000000>;
 				div = <2>;
 				#clock-cells = <2>;
 				status = "okay";
@@ -366,4 +372,8 @@
 	port-irqs = <&port_irq11>;
 	port-irq-names = "port-irq11";
 	port-irq11-pins = <8>;
+};
+
+&dac_global {
+	has-output-amplifier;
 };
