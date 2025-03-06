@@ -180,11 +180,11 @@ static int mcp23xxx_pin_cfg(const struct device *dev, gpio_pin_t pin, gpio_flags
 
 	k_sem_take(&drv_data->lock, K_FOREVER);
 
-	if ((bool)(flags & GPIO_SINGLE_ENDED) != config->is_open_drain ||
-	    (bool)(flags & GPIO_LINE_OPEN_DRAIN) != config->is_open_drain) {
-		ret = -ENOTSUP;
-		goto done;
-	}
+	// if ((bool)(flags & GPIO_SINGLE_ENDED) != config->is_open_drain ||
+	//     (bool)(flags & GPIO_LINE_OPEN_DRAIN) != config->is_open_drain) {
+	// 	ret = -ENOTSUP;
+	// 	goto done;
+	// }
 
 	ret = setup_pin_dir(dev, pin, flags);
 	if (ret < 0) {
