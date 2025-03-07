@@ -171,7 +171,7 @@ static int setup_pin_pull(const struct device *dev, uint32_t pin, int flags)
 static int mcp23xxx_pin_cfg(const struct device *dev, gpio_pin_t pin, gpio_flags_t flags)
 {
 	struct mcp23xxx_drv_data *drv_data = dev->data;
-	const struct mcp23xxx_config *config = dev->config;
+	// const struct mcp23xxx_config *config = dev->config;
 	int ret;
 
 	if (k_is_in_isr()) {
