@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2024 NXP
+ * Copyright 2023-2025 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -16,6 +16,7 @@
 #include <zephyr/drivers/flash.h>
 #include <zephyr/bluetooth/hci_types.h>
 #include <soc.h>
+#include <zephyr/pm/policy.h>
 
 #include <fwk_platform_ble.h>
 #include <fwk_platform.h>
@@ -71,6 +72,12 @@ LOG_MODULE_REGISTER(bt_driver);
 #if !defined(CONFIG_BT_HCI_SET_PUBLIC_ADDR)
 #define bt_nxp_set_mac_address(public_addr) 0
 #endif
+
+#if DT_NODE_HAS_STATUS(DT_NODELABEL(standby), okay) && defined(CONFIG_PM) &&\
+	defined(CONFIG_HCI_NXP_ENABLE_AUTO_SLEEP)
+#define HCI_NXP_LOCK_STANDBY_BEFORE_SEND
+#endif
+
 /* -------------------------------------------------------------------------- */
 /*                              Public prototypes                             */
 /* -------------------------------------------------------------------------- */
@@ -413,7 +420,18 @@ static int bt_nxp_send(const struct device *dev, struct net_buf *buf)
 	}
 
 	net_buf_push_u8(buf, packetType);
+#if defined(HCI_NXP_LOCK_STANDBY_BEFORE_SEND)
+	/* Sending an HCI message requires to wake up the controller core if it's asleep.
+	 * Platform controllers may send reponses using non wakeable interrupts which can
+	 * be lost during standby usage.
+	 * Blocking standby usage until the HCI message is sent.
+	 */
+	pm_policy_state_lock_get(PM_STATE_STANDBY, PM_ALL_SUBSTATES);
+#endif
 	PLATFORM_SendHciMessage(buf->data, buf->len);
+#if defined(HCI_NXP_LOCK_STANDBY_BEFORE_SEND)
+	pm_policy_state_lock_put(PM_STATE_STANDBY, PM_ALL_SUBSTATES);
+#endif
 
 	net_buf_unref(buf);
 
@@ -507,19 +525,7 @@ static int bt_nxp_close(const struct device *dev)
 {
 	struct bt_nxp_data *hci = dev->data;
 	int ret = 0;
-	/* Reset the Controller */
-	if (IS_ENABLED(CONFIG_BT_HCI_HOST)) {
-		ret = bt_hci_cmd_send_sync(BT_HCI_OP_RESET, NULL, NULL);
-		if (ret) {
-			LOG_ERR("Failed to reset BLE controller");
-		}
-		k_sleep(K_SECONDS(1));
 
-		ret = PLATFORM_TerminateBle();
-		if (ret < 0) {
-			LOG_ERR("Failed to shutdown BLE controller");
-		}
-	}
 	hci->recv = NULL;
 
 	return ret;
