@@ -17,6 +17,7 @@
 #include <esp_mac.h>
 #include <hal/emac_hal.h>
 #include <hal/emac_ll.h>
+#include <hal/gpio_ll.h>
 #include <soc/rtc.h>
 #include <soc/io_mux_reg.h>
 #include <clk_ctrl_os.h>
@@ -295,6 +296,7 @@ int eth_esp32_initialize(const struct device *dev)
 			goto err;
 		}
 		rtc_clk_apll_enable(true);
+		gpio_ll_iomux_pin_ctrl(0x6);
 #else
 		emac_hal_iomux_rmii_clk_input();
 		emac_ll_clock_enable_rmii_input(dev_data->hal.ext_regs);

@@ -16,6 +16,7 @@
 #include <esp_mac.h>
 #include <hal/emac_hal.h>
 #include <hal/emac_ll.h>
+#include <hal/gpio_ll.h>
 #include <soc/rtc.h>
 #include <clk_ctrl_os.h>
 
@@ -161,6 +162,7 @@ static int mdio_esp32_initialize(const struct device *dev)
 		goto err;
 	}
 	rtc_clk_apll_enable(true);
+	gpio_ll_iomux_pin_ctrl(0x6);
 #endif
 
 	/* Init MDIO clock */
