@@ -522,6 +522,7 @@ Bluetooth Audio:
     - tests/bsim/bluetooth/audio_samples/
     - tests/bluetooth/shell/audio.conf
     - tests/bluetooth/tester/overlay-le-audio.conf
+    - tests/bluetooth/tester/overlay-bt_ll_sw_split.conf
     - tests/bluetooth/tester/src/audio/
     - doc/connectivity/bluetooth/api/audio/
     - doc/connectivity/bluetooth/shell/audio/
@@ -991,6 +992,7 @@ Display drivers:
     - jfischer-no
     - danieldegrasse
     - VynDragon
+    - jarmouniA
   files:
     - drivers/display/
     - dts/bindings/display/
@@ -1837,6 +1839,8 @@ Release Notes:
   status: odd fixes
   collaborators:
     - aasinclair
+    - nordic-auko
+    - seov-nordic
   files:
     - drivers/mfd/
     - include/zephyr/drivers/mfd/
@@ -1864,7 +1868,8 @@ Release Notes:
 "Drivers: Regulators":
   status: maintained
   maintainers:
-    - gmarull
+    - nordic-auko
+    - seov-nordic
   collaborators:
     - danieldegrasse
     - aasinclair
@@ -2162,6 +2167,7 @@ Release Notes:
     - loicpoulain
     - josuah
     - ngphibang
+    - avolmat-st
   files:
     - drivers/video/
     - include/zephyr/drivers/video.h
@@ -4184,6 +4190,7 @@ STM32 Platforms:
     - marwaiehm-st
     - mathieuchopstm
     - djiatsaf-st
+    - etienne-lms
   files:
     - boards/st/
     - drivers/*/*stm32*.c
@@ -4583,6 +4590,9 @@ TDK Sensors:
   status: maintained
   maintainers:
     - RobinKastberg
+  collaborators:
+    - bjorniuppsala
+    - LoveKarlsson
   files:
     - cmake/*/iar/
     - include/zephyr/toolchain/iar.h

@@ -70,6 +70,7 @@ arc	Synopsys, Inc. (formerly ARC International PLC)
 archermind	ArcherMind Technology (Nanjing) Co., Ltd.
 arctic	Arctic Sand
 arcx	arcx Inc. / Archronix Inc.
+arducam	Arducam
 arduino	Arduino
 aries	Aries Embedded GmbH
 arm	ARM Ltd.
@@ -511,6 +512,7 @@ parade	Parade Technologies Inc.
 parallax	Parallax Inc.
 particle	Particle.io
 pda	Precision Design Associates, Inc.
+peacefair	Ningbo Peacefair Electronic Technology Co., Ltd
 peregrine	Peregrine Consultoria e Servicos
 pericom	Pericom Technology Inc.
 pervasive	Pervasive Displays, Inc.
